@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Morning Pages</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=Playfair+Display:ital,wght@0,700;1,400&family=Caveat:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #2c2416;
+    --ink-light: #6b5c42;
+    --ink-faint: #b8a98a;
+    --parchment: #faf7f0;
+    --parchment-warm: #f5f0e4;
+    --parchment-mid: #ede5d0;
+    --parchment-deep: #d4c9a8;
+    --dawn: #e8b86d;
+    --dawn-light: #f5dba0;
+    --rose: #c97b84;
+    --sage: #7a9e7e;
+    --sky: #7ba7bc;
+    --accent: #b5602a;
+    --progress-bg: #e8dfc8;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--parchment);
+    color: var(--ink);
+    font-family: 'Lora', Georgia, serif;
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 15% 20%, rgba(232,184,109,0.12) 0%, transparent 50%),
+      radial-gradient(ellipse at 85% 80%, rgba(201,123,132,0.08) 0%, transparent 50%),
+      repeating-linear-gradient(0deg, transparent, transparent 27px, rgba(180,160,120,0.07) 27px, rgba(180,160,120,0.07) 28px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app-wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0 20px 220px;
+  }
+
+  /* TOP CALENDAR STRIP */
+  .calendar-strip {
+    padding: 18px 0 12px;
+    text-align: center;
+  }
+
+  .month-label {
+    font-family: 'Caveat', cursive;
+    font-size: 13px;
+    color: var(--ink-light);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .day-dots {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 5px;
+    padding: 0 10px;
+  }
+
+  .day-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid var(--parchment-deep);
+    background: transparent;
+    transition: all 0.3s ease;
+    cursor: default;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+  }
+
+  .day-dot.today {
+    border-color: var(--dawn);
+    box-shadow: 0 0 0 2px rgba(232,184,109,0.3);
+  }
+
+  .day-dot.completed {
+    border-color: transparent;
+    font-size: 14px;
+    background: transparent;
+  }
+
+  .day-dot.partial {
+    background: rgba(232,184,109,0.3);
+    border-color: var(--dawn);
+  }
+
+  .day-dot.past-incomplete {
+    background: rgba(212,201,168,0.4);
+    border-color: var(--parchment-deep);
+  }
+
+  /* HEADER */
+  .journal-header {
+    text-align: center;
+    padding: 10px 0 20px;
+  }
+
+  .journal-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(28px, 5vw, 42px);
+    font-style: italic;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+  }
+
+  .journal-date {
+    font-family: 'Caveat', cursive;
+    font-size: 16px;
+    color: var(--ink-light);
+    margin-top: 4px;
+  }
+
+  /* STREAK BADGES */
+  .streak-area {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 8px 0 16px;
+  }
+
+  .streak-badge {
+    background: var(--parchment-warm);
+    border: 1px solid var(--parchment-deep);
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-family: 'Caveat', cursive;
+    font-size: 13px;
+    color: var(--ink-light);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.4s;
+  }
+
+  .streak-badge.active {
+    background: linear-gradient(135deg, #fff8e7, #fdefc8);
+    border-color: var(--dawn);
+    color: var(--accent);
+  }
+
+  /* TEXTAREA */
+  .paper-wrap {
+    position: relative;
+    margin: 0 0 16px;
+  }
+
+  .paper-shadow {
+    position: absolute;
+    inset: 4px -3px -4px 3px;
+    background: var(--parchment-deep);
+    border-radius: 3px;
+    z-index: 0;
+  }
+
+  .journal-area {
+    position: relative;
+    z-index: 1;
+    background: #fffef9;
+    border: 1px solid var(--parchment-mid);
+    border-radius: 2px;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.04);
+    padding: 24px 32px 24px 64px;
+    background-image:
+      repeating-linear-gradient(transparent, transparent 27px, rgba(166,146,104,0.18) 27px, rgba(166,146,104,0.18) 28px),
+      linear-gradient(to right, #f5c5c5 0px, #f5c5c5 1px, transparent 1px, transparent 55px, rgba(166,146,104,0.1) 55px, rgba(166,146,104,0.1) 56px);
+    background-position: 0 0, 0 0;
+  }
+
+  .journal-textarea {
+    width: 100%;
+    min-height: 480px;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: 'Lora', serif;
+    font-size: 17px;
+    line-height: 28px;
+    color: var(--ink);
+    caret-color: var(--accent);
+    overflow: hidden;
+  }
+
+  .journal-textarea::placeholder {
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+
+  /* BOTTOM BAR */
+  .bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 760px;
+    background: rgba(250,247,240,0.95);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid var(--parchment-deep);
+    padding: 10px 20px 12px;
+    z-index: 100;
+  }
+
+  .stats-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .word-count-display {
+    font-family: 'Caveat', cursive;
+    font-size: 18px;
+    color: var(--ink-light);
+    min-width: 80px;
+  }
+
+  .word-count-display .count-num {
+    font-size: 22px;
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .page-stack-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 70px;
+  }
+
+  .page-stack {
+    position: relative;
+    width: 28px;
+    height: 34px;
+    flex-shrink: 0;
+  }
+
+  .page-sheet {
+    position: absolute;
+    width: 22px;
+    height: 28px;
+    background: #fffef5;
+    border: 1px solid var(--parchment-deep);
+    border-radius: 2px;
+    bottom: 0;
+    left: 0;
+    transform-origin: bottom center;
+    animation: sheet-arrive 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+  }
+
+  .page-sheet::after {
+    content: '';
+    position: absolute;
+    top: 5px;
+    left: 3px;
+    right: 3px;
+    height: 1px;
+    background: rgba(180,160,120,0.25);
+    box-shadow: 0 4px 0 rgba(180,160,120,0.2), 0 8px 0 rgba(180,160,120,0.15);
+  }
+
+  @keyframes sheet-arrive {
+    from { transform: translateY(-10px) scale(0.85); opacity: 0; }
+    to   { transform: translateY(0) scale(1); opacity: 1; }
+  }
+
+  .page-stack-count {
+    font-family: 'Caveat', cursive;
+    font-size: 13px;
+    color: var(--ink-faint);
+    line-height: 1;
+  }
+
+  .save-status {
+    font-family: 'Caveat', cursive;
+    font-size: 13px;
+    color: var(--ink-faint);
+    flex: 1;
+    text-align: right;
+  }
+
+  .save-btn {
+    background: var(--parchment-warm);
+    border: 1px solid var(--parchment-deep);
+    border-radius: 20px;
+    padding: 5px 16px;
+    font-family: 'Caveat', cursive;
+    font-size: 14px;
+    color: var(--ink-light);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .save-btn:hover {
+    background: var(--parchment-deep);
+    color: var(--ink);
+  }
+
+  /* PROGRESS BOAT */
+  .progress-track {
+    position: relative;
+    height: 28px;
+    background: var(--progress-bg);
+    border-radius: 14px;
+    overflow: visible;
+    border: 1px solid var(--parchment-deep);
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(to right, #c8dbe8, #a8c4d4);
+    border-radius: 14px;
+    transition: width 0.6s cubic-bezier(0.34,1.56,0.64,1);
+    position: relative;
+    min-width: 0;
+  }
+
+  .progress-waves {
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .progress-waves::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 200%;
+    height: 100%;
+    background: repeating-linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 10%, transparent 20%);
+    animation: wave 3s linear infinite;
+  }
+
+  @keyframes wave {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  .boat {
+    position: absolute;
+    right: -14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 22px;
+    transition: right 0.6s cubic-bezier(0.34,1.56,0.64,1);
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+    z-index: 5;
+    animation: bob 2s ease-in-out infinite;
+  }
+
+  @keyframes bob {
+    0%, 100% { transform: translateY(-50%) rotate(-2deg); }
+    50% { transform: translateY(calc(-50% - 2px)) rotate(2deg); }
+  }
+
+  .progress-label {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Caveat', cursive;
+    font-size: 12px;
+    color: var(--ink-faint);
+    pointer-events: none;
+    z-index: 4;
+  }
+
+  /* TIMER STRIP */
+  .timer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+    font-family: 'Caveat', cursive;
+    font-size: 13px;
+    color: var(--ink-faint);
+  }
+
+  .timer-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: 'Caveat', cursive;
+  }
+
+  .hourglass {
+    font-size: 16px;
+    display: inline-block;
+    animation: hourglass-spin 8s linear infinite;
+    transform-origin: center;
+  }
+
+  @keyframes hourglass-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  .timer-display {
+    font-size: 14px;
+    color: var(--ink-light);
+    overflow: hidden;
+    max-width: 60px;
+    transition: max-width 0.3s ease, opacity 0.3s ease;
+    opacity: 1;
+    white-space: nowrap;
+  }
+
+  .timer-display.hidden {
+    max-width: 0;
+    opacity: 0;
+  }
+
+  .pause-indicator {
+    color: var(--rose);
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 12px;
+  }
+  .pause-indicator.visible { opacity: 1; }
+
+  /* CONFETTI */
+  .confetti-container {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    overflow: hidden;
+  }
+
+  .confetti-piece {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    top: -20px;
+    animation: confetti-fall linear forwards;
+  }
+
+  @keyframes confetti-fall {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    80% { opacity: 1; }
+    100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+  }
+
+  /* TOAST / POPUP */
+  .toast-container {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9998;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .toast {
+    background: #fffbf0;
+    border: 1px solid var(--dawn);
+    border-radius: 12px;
+    padding: 12px 20px;
+    font-family: 'Lora', serif;
+    font-size: 15px;
+    color: var(--ink);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    max-width: 360px;
+    text-align: center;
+    animation: toast-in 0.4s ease, toast-out 0.4s ease 3.6s forwards;
+    pointer-events: none;
+  }
+
+  .toast .toast-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-style: italic;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .toast .toast-sub {
+    font-size: 13px;
+    color: var(--ink-light);
+    margin-top: 4px;
+  }
+
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(-12px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes toast-out {
+    from { opacity: 1; }
+    to { opacity: 0; transform: translateY(-8px); }
+  }
+
+  /* REPAIR DIALOG */
+  .repair-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.88);
+    background: #fffbf0;
+    border: 1.5px solid var(--rose);
+    border-radius: 18px;
+    padding: 28px 32px;
+    text-align: center;
+    z-index: 9996;
+    max-width: 360px;
+    width: 90%;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.35s cubic-bezier(0.34,1.56,0.64,1);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.13);
+  }
+  .repair-dialog.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    pointer-events: auto;
+  }
+  .repair-dialog-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    font-style: italic;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .repair-dialog-body {
+    font-family: 'Caveat', cursive;
+    font-size: 15px;
+    color: var(--ink-light);
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  .repair-dialog-btns {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+  .repair-dialog-btns button {
+    font-family: 'Caveat', cursive;
+    font-size: 15px;
+    border-radius: 20px;
+    padding: 7px 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid var(--parchment-deep);
+  }
+  .repair-yes {
+    background: var(--rose);
+    color: white;
+    border-color: var(--rose) !important;
+  }
+  .repair-yes:hover { opacity: 0.85; }
+  .repair-no {
+    background: var(--parchment-warm);
+    color: var(--ink-light);
+  }
+  .repair-no:hover { background: var(--parchment-deep); }
+
+  /* REPAIR BANNER */
+  .repair-banner {
+    background: rgba(201,123,132,0.1);
+    border: 1px solid rgba(201,123,132,0.3);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-family: 'Caveat', cursive;
+    font-size: 14px;
+    color: var(--rose);
+    margin-bottom: 12px;
+    text-align: center;
+    display: none;
+  }
+
+  .repair-banner.visible { display: block; }
+
+  /* MILESTONE POPUP */
+  .milestone-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    background: #fffbf0;
+    border: 2px solid var(--dawn);
+    border-radius: 20px;
+    padding: 32px 40px;
+    text-align: center;
+    z-index: 9997;
+    max-width: 400px;
+    width: 90%;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    box-shadow: 0 12px 48px rgba(0,0,0,0.15);
+  }
+
+  .milestone-popup.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    pointer-events: auto;
+  }
+
+  .milestone-icon { font-size: 48px; margin-bottom: 12px; }
+  .milestone-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-style: italic;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .milestone-fact {
+    font-size: 14px;
+    color: var(--ink-light);
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+  .milestone-close {
+    background: var(--parchment-warm);
+    border: 1px solid var(--parchment-deep);
+    border-radius: 20px;
+    padding: 8px 24px;
+    font-family: 'Caveat', cursive;
+    font-size: 15px;
+    cursor: pointer;
+    color: var(--ink-light);
+  }
+  .milestone-close:hover { background: var(--parchment-deep); }
+
+  /* NOTIFICATION PERMISSION */
+  .notif-bar {
+    background: rgba(122,158,126,0.12);
+    border: 1px solid rgba(122,158,126,0.3);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-family: 'Caveat', cursive;
+    font-size: 13px;
+    color: var(--sage);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .notif-btn {
+    background: var(--sage);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 3px 12px;
+    font-family: 'Caveat', cursive;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  @media (max-width: 600px) {
+    .journal-area { padding: 20px 16px 20px 44px; }
+    .journal-textarea { font-size: 16px; }
+    .bottom-bar { padding: 8px 14px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-wrap">
+  <div id="notifBar" class="notif-bar" style="display:none">
+    <span>Enable notifications for 10, 15 & 30 min writing reminders?</span>
+    <button class="notif-btn" onclick="requestNotifications()">Enable</button>
+    <button class="notif-btn" style="background:var(--ink-faint)" onclick="document.getElementById('notifBar').style.display='none'">Skip</button>
+  </div>
+
+  <div class="calendar-strip">
+    <div class="month-label" id="monthLabel"></div>
+    <div class="day-dots" id="dayDots"></div>
+  </div>
+
+  <div class="streak-area" id="streakArea"></div>
+
+  <div class="journal-header">
+    <div class="journal-title">morning pages</div>
+    <div class="journal-date" id="journalDate"></div>
+  </div>
+
+  <div id="repairBanner" class="repair-banner"></div>
+
+  <div class="paper-wrap">
+    <div class="paper-shadow"></div>
+    <div class="journal-area">
+      <textarea
+        id="journalTextarea"
+        class="journal-textarea"
+        placeholder="Begin here. Let the words come…"
+        spellcheck="true"
+        autocorrect="on"
+      ></textarea>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <div class="stats-row">
+    <div class="word-count-display">
+      <span class="count-num" id="wordCountDisplay">0</span>
+      <span> words</span>
+    </div>
+    <div class="page-stack-wrap">
+      <div class="page-stack" id="pageStack"></div>
+      <div class="page-stack-count" id="pageStackCount"></div>
+    </div>
+    <div class="save-status" id="saveStatus">not saved</div>
+    <button class="save-btn" onclick="manualSave()">save ✦</button>
+  </div>
+  <div class="progress-track" id="progressTrack">
+    <div class="progress-fill" id="progressFill">
+      <div class="progress-waves"></div>
+    </div>
+    <div class="boat" id="boatEmoji">⛵</div>
+    <div class="progress-label" id="progressLabel">3 pages</div>
+  </div>
+  <div class="timer-row">
+    <button class="timer-toggle" id="timerToggle" onclick="toggleTimer()">
+      <span class="hourglass">⏳</span>
+      <span class="timer-display" id="timerDisplay">0:00</span>
+    </button>
+    <div id="pauseIndicator" class="pause-indicator">☕ taking a pause…</div>
+    <div id="completionTime" style="font-size:13px;color:var(--ink-faint)"></div>
+  </div>
+</div>
+
+<!-- Confetti container -->
+<div class="confetti-container" id="confettiContainer"></div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Repair dialog -->
+<div class="repair-dialog" id="repairDialog">
+  <div class="repair-dialog-title">You've arrived ✦</div>
+  <div class="repair-dialog-body" id="repairDialogBody"></div>
+  <div class="repair-dialog-btns">
+    <button class="repair-yes" onclick="confirmRepair()">Yes, repair it</button>
+    <button class="repair-no" onclick="declineRepair()">No, I'm done</button>
+  </div>
+</div>
+
+<!-- Milestone popup -->
+<div class="milestone-popup" id="milestonePopup">
+  <div class="milestone-icon" id="milestoneIcon">✦</div>
+  <div class="milestone-title" id="milestoneTitle"></div>
+  <div class="milestone-fact" id="milestoneFact"></div>
+  <button class="milestone-close" onclick="closeMilestone()">carry on →</button>
+</div>
+
+<script>
+const WORDS_PER_PAGE = 250;
+const PAGES_GOAL = 3;
+const GOAL_WORDS = WORDS_PER_PAGE * PAGES_GOAL;
+const AUTOSAVE_INTERVAL = 3000;
+const PAUSE_THRESHOLD = 120000; // 2 min
+const NOTIFICATION_MINUTES = [10, 15, 30];
+
+// --- STATE ---
+let state = {
+  days: {},           // { 'YYYY-MM-DD': { text, peakWords, completedPages, pagesCarried } }
+  streaks: { current: 0, repairMode: false, repairDaysNeeded: 0, repairDoubleDaysWritten: 0, lastRepairDate: null },
+  lifetimeWords: 0,
+  milestonesHit: [],
+  streakMilestonesHit: [],
+};
+
+let sessionPeakWords = 0; // the highest real word count reached this session
+let displayedWords = 0;   // shown count (never decreases)
+let timerSeconds = 0;
+let timerInterval = null;
+let lastTypedTime = null;
+let isPaused = false;
+let pauseTimeout = null;
+let sessionStarted = false;
+let completionReached = false;
+let confettiDone = false;
+let notificationsEnabled = false;
+let notifTimeouts = [];
+let timerVisible = true;
+
+const today = new Date();
+const todayStr = dateStr(today);
+
+// --- MILESTONES ---
+const WORD_MILESTONES = [
+  { words: 1000,    icon: '🌱', title: 'First Thousand', fact: 'You\'ve written more than the entirety of most business emails sent this year. The seed is planted.' },
+  { words: 2000,    icon: '✉️', title: 'Two Thousand', fact: 'Two thousand words is roughly the length of a short story. You\'re already a storyteller.' },
+  { words: 5000,    icon: '📖', title: 'Five Thousand', fact: 'Fitzgerald wrote the first chapter of Gatsby about this many words. Not bad company.' },
+  { words: 7500,    icon: '🌊', title: 'Seven and a Half', fact: 'A flowing river — 7,500 words of your inner world made real. Keep the current going.' },
+  { words: 10000,   icon: '🏔️', title: 'Ten Thousand', fact: 'Malcolm Gladwell says 10,000 hours makes an expert. You\'re at 10,000 words. Something is stirring.' },
+  { words: 20000,   icon: '🗺️', title: 'Twenty Thousand', fact: '20,000 words is a novella. You have written a world inside yourself.' },
+  { words: 50000,   icon: '📚', title: 'Fifty Thousand', fact: 'NaNoWriMo\'s goal is 50,000 words. You\'ve written a novel\'s worth of morning truth.' },
+  { words: 75000,   icon: '🌅', title: 'Seventy-Five Thousand', fact: 'The average published novel is 70–90k words. You\'ve lived inside language at that scale.' },
+  { words: 100000,  icon: '🏛️', title: 'One Hundred Thousand', fact: 'War and Peace is ~580,000 words. You\'re 17% of the way to Tolstoy. Begin.' },
+  { words: 250000,  icon: '🌌', title: 'A Quarter Million', fact: 'The King James Bible is ~780,000 words. You\'ve written a third of scripture in morning honesty.' },
+  { words: 500000,  icon: '🌠', title: 'Half a Million', fact: 'Half a million words. You have written more than most humans will ever write in a lifetime.' },
+  { words: 750000,  icon: '💫', title: 'Three Quarters of a Million', fact: 'You are approaching the territory of the great serialists — Dickens, Balzac. Remarkable.' },
+  { words: 1000000, icon: '👑', title: 'One Million Words', fact: 'A million words. Few humans in history have written this much. You are among them now.' },
+];
+
+const STREAK_MILESTONES = [
+  { days: 3,   icon: '🔥', title: 'Three Days', fact: 'Three days in a row. A habit is beginning to breathe.' },
+  { days: 7,   icon: '🌟', title: 'One Week', fact: 'Seven days. One whole week of mornings claimed for yourself.' },
+  { days: 14,  icon: '🌙', title: 'Two Weeks', fact: 'Two weeks. Your mornings have changed shape. You are different than you were.' },
+  { days: 30,  icon: '🗓️', title: 'One Month', fact: 'A full month of morning pages. Julia Cameron would weep with joy.' },
+  { days: 90,  icon: '🌺', title: 'Three Months', fact: 'Ninety days. Psychologists say habits fully form around 66 days. Yours is now ancient.' },
+  { days: 150, icon: '🦋', title: 'Five Months', fact: 'One hundred and fifty mornings. You have built a second self on the page.' },
+  { days: 180, icon: '☯️', title: 'Six Months', fact: 'Half a year of mornings given to the page. You are a practitioner now.' },
+  { days: 365, icon: '🌍', title: 'One Year', fact: 'A full orbit of the sun. 365 mornings. You are not the same person who began.' },
+  { days: 500, icon: '✨', title: 'Five Hundred Days', fact: '500 days. You have done something most people only dream about.' },
+  { days: 730, icon: '🪐', title: 'Two Years', fact: 'Two years. The page has become as natural as breathing. It was always this.' },
+  { days: 1095,icon: '🌠', title: 'Three Years', fact: 'Three years of morning pages. You have written through seasons, griefs, joys, questions. You are the practice.' },
+];
+
+// --- UTILS ---
+function dateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function countWords(text) {
+  return text.trim() === '' ? 0 : text.trim().split(/\s+/).filter(w => w.length > 0).length;
+}
+
+function formatTime(secs) {
+  const m = Math.floor(secs / 60), s = secs % 60;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function getDaysInMonth(year, month) {
+  return new Date(year, month+1, 0).getDate();
+}
+
+// --- STORAGE ---
+function loadState() {
+  try {
+    const raw = localStorage.getItem('morningPagesState');
+    if (raw) state = { ...state, ...JSON.parse(raw) };
+  } catch(e) {}
+}
+
+function saveState() {
+  try { localStorage.setItem('morningPagesState', JSON.stringify(state)); } catch(e) {}
+}
+
+function loadTodayText() {
+  if (!state.days[todayStr]) state.days[todayStr] = { text: '', peakWords: 0, completedPages: 0, pagesCarried: 0 };
+  return state.days[todayStr].text || '';
+}
+
+// --- CALENDAR ---
+function renderCalendar() {
+  const year = today.getFullYear(), month = today.getMonth();
+  const daysInMonth = getDaysInMonth(year, month);
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('monthLabel').textContent = months[month] + ' ' + year;
+  const dotsEl = document.getElementById('dayDots');
+  dotsEl.innerHTML = '';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = dateStr(new Date(year, month, d));
+    const dayData = state.days[ds];
+    const dot = document.createElement('div');
+    dot.className = 'day-dot';
+    const dateObj = new Date(year, month, d);
+    const isToday = ds === todayStr;
+    const isPast = dateObj < today && !isToday;
+    const pagesNeeded = PAGES_GOAL + (dayData?.pagesCarried || 0);
+    const completedPages = dayData?.completedPages || 0;
+    if (completedPages >= pagesNeeded) {
+      dot.classList.add('completed');
+      dot.textContent = '🤍';
+    } else if (isToday) {
+      dot.classList.add('today');
+      if (completedPages > 0) dot.classList.add('partial');
+    } else if (isPast && completedPages > 0) {
+      dot.classList.add('partial');
+    } else if (isPast) {
+      dot.classList.add('past-incomplete');
+    }
+    dot.title = `Day ${d}`;
+    dotsEl.appendChild(dot);
+  }
+}
+
+// --- STREAK CALCULATION ---
+function calculateStreak() {
+  let streak = 0;
+  const d = new Date(today);
+  // Don't count today if not complete
+  const todayData = state.days[todayStr];
+  const todayPagesNeeded = PAGES_GOAL + (todayData?.pagesCarried || 0);
+  let startFrom = (todayData?.completedPages >= todayPagesNeeded) ? 0 : 1;
+  for (let i = startFrom; i < 400; i++) {
+    const dd = new Date(d);
+    dd.setDate(d.getDate() - i);
+    const ds = dateStr(dd);
+    const data = state.days[ds];
+    const pagesNeeded = PAGES_GOAL + (data?.pagesCarried || 0);
+    if (data && data.completedPages >= pagesNeeded) {
+      streak++;
+    } else if (i > startFrom) {
+      break;
+    }
+  }
+  return streak;
+}
+
+function checkStreakMilestones(streak) {
+  for (const sm of STREAK_MILESTONES) {
+    const key = `streak_${sm.days}`;
+    if (streak >= sm.days && !state.streakMilestonesHit.includes(key)) {
+      state.streakMilestonesHit.push(key);
+      setTimeout(() => showMilestone(sm.icon, sm.title, sm.fact), 600);
+    }
+  }
+}
+
+function renderStreaks() {
+  const streak = calculateStreak();
+  state.streaks.current = streak;
+  checkStreakMilestones(streak);
+
+  const defs = [
+    { days: 3, icon: '🔥', label: '3 day' },
+    { days: 7, icon: '🌟', label: '7 day' },
+    { days: 14, icon: '🌙', label: '2 weeks' },
+    { days: 30, icon: '🗓️', label: 'month' },
+    { days: 90, icon: '🌺', label: '3 months' },
+    { days: 150, icon: '🦋', label: '5 months' },
+    { days: 180, icon: '☯️', label: '6 months' },
+    { days: 365, icon: '🌍', label: '1 year' },
+    { days: 500, icon: '✨', label: '500 days' },
+    { days: 730, icon: '🪐', label: '2 years' },
+    { days: 1095, icon: '🌠', label: '3 years' },
+  ];
+
+  const area = document.getElementById('streakArea');
+  area.innerHTML = '';
+
+  // Current streak counter
+  if (streak > 0) {
+    const b = document.createElement('div');
+    b.className = 'streak-badge active';
+    b.innerHTML = `🔥 ${streak} day streak`;
+    area.appendChild(b);
+  }
+
+  // Show achieved milestones
+  let shown = 0;
+  for (const def of defs.reverse()) {
+    if (streak >= def.days && shown < 3) {
+      const b = document.createElement('div');
+      b.className = 'streak-badge active';
+      b.innerHTML = `${def.icon} ${def.label}`;
+      area.appendChild(b);
+      shown++;
+    }
+  }
+  defs.reverse(); // restore order
+}
+
+// --- REPAIR BANNER ---
+function updateRepairBanner() {
+  const banner = document.getElementById('repairBanner');
+  const r = state.streaks;
+  if (r.repairMode && r.repairDaysNeeded > 0) {
+    banner.textContent = `✦ Repair mode: write double pages today (${r.repairDaysNeeded - r.repairDoubleDaysWritten} double day${(r.repairDaysNeeded - r.repairDoubleDaysWritten) !== 1 ? 's' : ''} remaining)`;
+    banner.classList.add('visible');
+  } else {
+    banner.classList.remove('visible');
+  }
+}
+
+// --- PROGRESS BAR ---
+function updateProgress() {
+  const totalGoal = GOAL_WORDS;
+  const pct = Math.min(displayedWords / totalGoal, 1);
+  const track = document.getElementById('progressTrack');
+  const fill = document.getElementById('progressFill');
+  const boat = document.getElementById('boatEmoji');
+  const label = document.getElementById('progressLabel');
+
+  const trackW = track.offsetWidth;
+  const fillPct = pct * 100;
+  fill.style.width = fillPct + '%';
+
+  const boatPx = Math.max(14, Math.min(trackW - 14, pct * trackW));
+  boat.style.left = boatPx + 'px';
+  boat.style.right = 'auto';
+
+  // Swap emoji: island at goal, boat otherwise
+  if (pct >= 1) {
+    boat.textContent = '🏝️';
+    boat.style.animation = 'none'; // island doesn't bob
+    label.textContent = '✦ done!';
+  } else {
+    boat.textContent = '⛵';
+    boat.style.animation = '';
+    const remaining = Math.max(0, totalGoal - displayedWords);
+    label.textContent = remaining + ' to go';
+  }
+}
+
+// --- WORD COUNT / PAGES ---
+const STACK_INCREMENT = 100; // one sheet per 100 words
+let renderedSheets = 0;
+
+function updateWordDisplay() {
+  const w = displayedWords;
+  document.getElementById('wordCountDisplay').textContent = w;
+
+  // Build page stack: one sheet per STACK_INCREMENT words
+  const sheetsEarned = Math.floor(w / STACK_INCREMENT);
+  const stack = document.getElementById('pageStack');
+  const countEl = document.getElementById('pageStackCount');
+
+  // Only add sheets, never remove (mirrors the non-decreasing word count)
+  while (renderedSheets < sheetsEarned) {
+    const sheet = document.createElement('div');
+    sheet.className = 'page-sheet';
+    // Fan stack: each sheet offset slightly right and up
+    const offset = Math.min(renderedSheets, 5); // cap visual depth at 6 layers
+    sheet.style.left = (offset * 1.5) + 'px';
+    sheet.style.bottom = (offset * 1.5) + 'px';
+    sheet.style.zIndex = renderedSheets;
+    // Alternate tiny rotations for a natural pile feel
+    const tilt = (renderedSheets % 2 === 0 ? 1 : -1) * (Math.random() * 1.5);
+    sheet.style.transform = `rotate(${tilt}deg)`;
+    sheet.style.animation = 'sheet-arrive 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards';
+    stack.appendChild(sheet);
+    renderedSheets++;
+  }
+
+  // Count label: show page count (250-word pages)
+  const fullPages = Math.floor(w / WORDS_PER_PAGE);
+  if (sheetsEarned > 0) {
+    countEl.textContent = fullPages > 0 ? `${fullPages}p` : ``;
+  } else {
+    countEl.textContent = '';
+  }
+
+  updateProgress();
+}
+
+function checkWordMilestones(words) {
+  for (const m of WORD_MILESTONES) {
+    const key = `words_${m.words}`;
+    if (words >= m.words && !state.milestonesHit.includes(key)) {
+      state.milestonesHit.push(key);
+      setTimeout(() => showMilestone(m.icon, m.title, m.fact), 400);
+    }
+  }
+}
+
+// --- CONFETTI ---
+function sprayConfetti() {
+  if (confettiDone) return;
+  confettiDone = true;
+  const container = document.getElementById('confettiContainer');
+  const colors = ['#e8b86d','#c97b84','#7a9e7e','#7ba7bc','#b5602a','#fad46a','#f5c5c5'];
+  const shapes = ['■','●','▲','◆','★'];
+  for (let i = 0; i < 120; i++) {
+    setTimeout(() => {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = Math.random() * 100 + 'vw';
+      piece.style.background = colors[Math.floor(Math.random()*colors.length)];
+      piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+      piece.style.width = (8 + Math.random()*8) + 'px';
+      piece.style.height = (8 + Math.random()*8) + 'px';
+      piece.style.animationDuration = (2 + Math.random()*3) + 's';
+      piece.style.animationDelay = '0s';
+      container.appendChild(piece);
+      setTimeout(() => piece.remove(), 5000);
+    }, i * 20);
+  }
+}
+
+// --- TOAST ---
+function showToast(title, sub) {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `<div class="toast-title">${title}</div>${sub ? `<div class="toast-sub">${sub}</div>` : ''}`;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 4200);
+}
+
+// --- MILESTONE POPUP ---
+function showMilestone(icon, title, fact) {
+  document.getElementById('milestoneIcon').textContent = icon;
+  document.getElementById('milestoneTitle').textContent = title;
+  document.getElementById('milestoneFact').textContent = fact;
+  document.getElementById('milestonePopup').classList.add('show');
+}
+
+function closeMilestone() {
+  document.getElementById('milestonePopup').classList.remove('show');
+}
+
+// --- STREAK REPAIR DIALOG ---
+function showRepairDialog() {
+  const streak = state.streaks.current;
+  const body = streak > 0
+    ? `Your streak was broken, but you had ${streak} day${streak !== 1 ? 's' : ''} going. Want to write another round today to begin repairing it?`
+    : `Your streak was broken. Want to write another set of pages today to start rebuilding?`;
+  document.getElementById('repairDialogBody').textContent = body;
+  document.getElementById('repairDialog').classList.add('show');
+}
+
+function closeRepairDialog() {
+  document.getElementById('repairDialog').classList.remove('show');
+}
+
+function confirmRepair() {
+  closeRepairDialog();
+  // Reset progress bar and word tracking for a new repair round
+  displayedWords = 0;
+  sessionPeakWords = 0;
+  completionReached = false;
+  confettiDone = false;
+  // Reset page stack
+  renderedSheets = 0;
+  document.getElementById('pageStack').innerHTML = '';
+  document.getElementById('pageStackCount').textContent = '';
+  // Mark repair mode
+  state.streaks.repairMode = true;
+  state.streaks.repairDaysNeeded = (state.streaks.repairDaysNeeded || 1);
+  saveState();
+  updateRepairBanner();
+  updateWordDisplay();
+  updateProgress();
+  showToast('Repair mode', 'Write another three pages to repair your streak.');
+}
+
+function declineRepair() {
+  closeRepairDialog();
+}
+
+// --- SAVE ---
+function save(auto) {
+  const textarea = document.getElementById('journalTextarea');
+  const text = textarea.value;
+  if (!state.days[todayStr]) state.days[todayStr] = { text: '', peakWords: 0, completedPages: 0, pagesCarried: 0 };
+  state.days[todayStr].text = text;
+  state.days[todayStr].peakWords = Math.max(state.days[todayStr].peakWords || 0, sessionPeakWords);
+
+  // update lifetime words
+  let total = 0;
+  for (const d in state.days) total += (state.days[d].peakWords || 0);
+  state.lifetimeWords = total;
+  checkWordMilestones(state.lifetimeWords);
+
+  saveState();
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  document.getElementById('saveStatus').textContent = auto ? `saved ${timeStr}` : `✦ saved ${timeStr}`;
+}
+
+function manualSave() {
+  save(false);
+}
+
+// --- TIMER ---
+function startTimer() {
+  if (timerInterval) return;
+  timerInterval = setInterval(() => {
+    timerSeconds++;
+    document.getElementById('timerDisplay').textContent = formatTime(timerSeconds);
+
+    // Pause detection (only after typing has started)
+    if (lastTypedTime !== null && Date.now() - lastTypedTime > PAUSE_THRESHOLD) {
+      if (!isPaused) {
+        isPaused = true;
+        document.getElementById('pauseIndicator').classList.add('visible');
+      }
+    }
+  }, 1000);
+}
+
+function resetPauseTimer() {
+  lastTypedTime = Date.now();
+  if (isPaused) {
+    isPaused = false;
+    document.getElementById('pauseIndicator').classList.remove('visible');
+  }
+}
+
+function toggleTimer() {
+  timerVisible = !timerVisible;
+  const display = document.getElementById('timerDisplay');
+  if (timerVisible) {
+    display.classList.remove('hidden');
+  } else {
+    display.classList.add('hidden');
+  }
+}
+
+// --- NOTIFICATIONS ---
+function scheduleNotifications() {
+  notifTimeouts.forEach(clearTimeout);
+  notifTimeouts = [];
+  if (!notificationsEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+  NOTIFICATION_MINUTES.forEach(min => {
+    const ms = min * 60 * 1000;
+    notifTimeouts.push(setTimeout(() => {
+      new Notification('Morning Pages', {
+        body: `${min} minutes of writing — keep going! ✦`,
+        icon: ''
+      });
+    }, ms));
+  });
+}
+
+function requestNotifications() {
+  if (!('Notification' in window)) return;
+  Notification.requestPermission().then(perm => {
+    if (perm === 'granted') {
+      notificationsEnabled = true;
+      document.getElementById('notifBar').style.display = 'none';
+      showToast('Notifications on', 'You\'ll hear from me at 10, 15, and 30 minutes.');
+      scheduleNotifications();
+    }
+  });
+}
+
+// --- COMPLETION ---
+function markDayComplete() {
+  if (!state.days[todayStr]) state.days[todayStr] = { text: '', peakWords: 0, completedPages: 0, pagesCarried: 0 };
+  const needed = PAGES_GOAL + (state.days[todayStr].pagesCarried || 0);
+  state.days[todayStr].completedPages = needed;
+  saveState();
+  renderCalendar();
+  renderStreaks();
+}
+
+// --- CARRY OVER LOGIC ---
+function checkCarryForward() {
+  // Check yesterday — if incomplete, carry partial pages to today
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const yesterdayStr = dateStr(yesterday);
+  const yData = state.days[yesterdayStr];
+  if (!yData) return;
+  const yNeeded = PAGES_GOAL + (yData.pagesCarried || 0);
+  if (yData.completedPages < yNeeded) {
+    const missed = yNeeded - (yData.completedPages || 0);
+    if (!state.days[todayStr]) state.days[todayStr] = { text: '', peakWords: 0, completedPages: 0, pagesCarried: 0 };
+    state.days[todayStr].pagesCarried = (state.days[todayStr].pagesCarried || 0) + missed;
+    saveState();
+  }
+}
+
+// --- DATE HEADER ---
+function renderDateHeader() {
+  const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+  document.getElementById('journalDate').textContent = today.toLocaleDateString(undefined, opts);
+}
+
+// --- MAIN INPUT HANDLER ---
+document.getElementById('journalTextarea').addEventListener('input', function() {
+  if (!sessionStarted) {
+    sessionStarted = true;
+    startTimer();
+    scheduleNotifications();
+  }
+  resetPauseTimer();
+
+  const raw = countWords(this.value);
+
+  // Word count never decreases — only increases when raw > peak
+  if (raw > sessionPeakWords) {
+    sessionPeakWords = raw;
+    displayedWords = sessionPeakWords;
+  }
+  // displayedWords stays at sessionPeakWords
+
+  updateWordDisplay();
+
+  // Check page completions
+  const pages = Math.floor(displayedWords / WORDS_PER_PAGE);
+  const todayData = state.days[todayStr] || { completedPages: 0, pagesCarried: 0 };
+  const totalPagesNeeded = PAGES_GOAL + (todayData.pagesCarried || 0);
+
+  if (pages >= PAGES_GOAL && !completionReached) {
+    completionReached = true;
+    sprayConfetti();
+    showToast('Three pages! ✦', 'Your morning pages are complete for today.');
+    const completionSecs = timerSeconds;
+    document.getElementById('completionTime').textContent = `completed in ${formatTime(completionSecs)}`;
+    // Check if streak needs repair — show dialog after a short delay so confetti lands first
+    setTimeout(() => {
+      const streak = calculateStreak();
+      if (streak === 0) {
+        // Streak is broken — offer repair
+        showRepairDialog();
+      }
+      // If streak is intact, island just stays — no prompt
+    }, 1800);
+  }
+
+  if (pages >= totalPagesNeeded && (!todayData.completedPages || todayData.completedPages < totalPagesNeeded)) {
+    markDayComplete();
+  }
+
+  // Auto-resize + scroll caret into view
+  this.style.height = 'auto';
+  this.style.height = Math.max(480, this.scrollHeight) + 'px';
+  // Ensure the cursor line is visible above the fixed footer
+  const caret = this.getBoundingClientRect().top + (this.scrollTop / this.scrollHeight) * this.offsetHeight;
+  const footerHeight = document.querySelector('.bottom-bar').offsetHeight + 16;
+  const caretBottom = this.selectionEnd;
+  // Use scrollIntoView on a zero-width range approximation via textarea scroll
+  const lineHeight = 28;
+  const approxCaretY = this.getBoundingClientRect().bottom - (this.scrollHeight - this.scrollTop - this.offsetHeight) - lineHeight;
+  const windowBottom = window.innerHeight - footerHeight;
+  if (approxCaretY > windowBottom) {
+    window.scrollBy({ top: approxCaretY - windowBottom + lineHeight, behavior: 'smooth' });
+  }
+});
+
+// Auto-save every 3 seconds
+setInterval(() => {
+  const text = document.getElementById('journalTextarea').value;
+  if (text.length > 0) save(true);
+}, AUTOSAVE_INTERVAL);
+
+// --- INIT ---
+function init() {
+  loadState();
+  checkCarryForward();
+  renderDateHeader();
+  renderCalendar();
+  renderStreaks();
+  updateRepairBanner();
+
+  const text = loadTodayText();
+  const textarea = document.getElementById('journalTextarea');
+  textarea.value = text;
+
+  // Restore peak from saved state (if returning to app)
+  const todayData = state.days[todayStr];
+  if (todayData) {
+    sessionPeakWords = todayData.peakWords || 0;
+    displayedWords = sessionPeakWords;
+    completionReached = (todayData.completedPages >= PAGES_GOAL);
+    if (completionReached) confettiDone = true;
+    const completionSecs = todayData.completionTime || 0;
+    if (completionSecs > 0) {
+      document.getElementById('completionTime').textContent = `completed in ${formatTime(completionSecs)}`;
+    }
+  }
+
+  updateWordDisplay();
+  textarea.style.height = 'auto';
+  textarea.style.height = Math.max(480, textarea.scrollHeight) + 'px';
+
+  if ('Notification' in window && Notification.permission !== 'granted') {
+    document.getElementById('notifBar').style.display = 'flex';
+  }
+
+  // Update progress bar on resize
+  window.addEventListener('resize', updateProgress);
+  setTimeout(updateProgress, 100);
+}
+
+init();
+</script>
+</body>
+</html>
