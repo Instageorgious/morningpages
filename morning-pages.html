@@ -498,6 +498,7 @@
 <div class="app-wrap">
   <div class="topbar">
     <span class="user-email" id="userEmail"></span>
+    <a href="dashboard.html" style="font-family:'Caveat',cursive;font-size:13px;color:var(--ink-faint);text-decoration:none;transition:color 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--ink-faint)'">✦ dashboard</a>
     <button class="signout-btn" onclick="signOut()">sign out</button>
   </div>
 
@@ -542,7 +543,11 @@
     <button class="day-nav-btn" id="nextDayBtn" onclick="navigateDay(1)">next →</button>
   </div>
 
-  <div class="readonly-badge" id="readonlyBadge">✦ this day is sealed — words rest here ✦</div>
+  <div class="readonly-badge" id="readonlyBadge">
+    ✦ this day is sealed — words rest here ✦
+    &nbsp;&nbsp;
+    <a id="starEntryLink" href="#" style="font-family:'Caveat',cursive;font-size:12px;color:var(--ink-faint);text-decoration:none;" onclick="starCurrentEntry(event)">star this entry</a>
+  </div>
 
   <div class="paper-wrap">
     <div class="paper-shadow"></div>
@@ -1345,6 +1350,12 @@ async function init() {
   const ls=document.getElementById('loadingScreen');
   ls.classList.add('hidden');
   setTimeout(()=>ls.style.display='none',500);
+}
+
+function starCurrentEntry(e) {
+  e.preventDefault();
+  if (!viewingDate || viewingDate === todayStr) return;
+  window.location.href = 'dashboard.html?star=' + viewingDate;
 }
 
 init();
