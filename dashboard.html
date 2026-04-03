@@ -261,14 +261,46 @@
 <div class="toast-container" id="toastContainer"></div>
 <div class="dialog-overlay" id="dialogOverlay"></div>
 
-<!-- SHRED CONFIRM DIALOG -->
-<div class="dialog" id="shredDialog">
+<!-- DOWNLOAD PASSWORD DIALOG -->
+<div class="dialog" id="downloadDialog">
+  <div class="dialog-title" id="downloadDialogTitle">confirm download</div>
+  <div class="dialog-body" id="downloadDialogBody">Enter your password to download your writing.</div>
+  <input class="dialog-input" id="downloadPassword" type="password" placeholder="your password" autocomplete="current-password">
+  <div id="downloadError" style="font-family:Caveat,cursive;font-size:13px;color:var(--rose);margin-bottom:12px;min-height:18px"></div>
+  <div class="dialog-btns">
+    <button class="btn-primary" id="downloadConfirmBtn" onclick="executeDownload()">download</button>
+    <button class="btn-secondary" onclick="hideDownload()">cancel</button>
+  </div>
+</div>
+
+<!-- SHRED STEP 1 -->
+<div class="dialog" id="shredDialog1">
   <div class="dialog-title">Shred the journal?</div>
-  <div class="dialog-body">This permanently deletes every entry and all your data. It cannot be undone.<br><br>Type <strong>shred</strong> to confirm.</div>
-  <input class="dialog-input" id="shredInput" type="text" placeholder="shred" autocomplete="off">
+  <div class="dialog-body">Every entry, every word, all your data — permanently gone. This is not undoable.<br><br>Are you sure you want to do this?</div>
+  <div class="dialog-btns">
+    <button class="btn-danger" onclick="shredStep2()">I'm sure</button>
+    <button class="btn-secondary" onclick="hideAllShred()">cancel</button>
+  </div>
+</div>
+
+<!-- SHRED STEP 2 -->
+<div class="dialog" id="shredDialog2">
+  <div class="dialog-title">Really sure?</div>
+  <div class="dialog-body">Once you do this, the words are gone. Not archived. Not recoverable. Gone.<br><br>Are you <em>really</em> sure?</div>
+  <div class="dialog-btns">
+    <button class="btn-danger" onclick="shredStep3()">Yes, really</button>
+    <button class="btn-secondary" onclick="hideAllShred()">cancel</button>
+  </div>
+</div>
+
+<!-- SHRED STEP 3 — type the phrase -->
+<div class="dialog" id="shredDialog3">
+  <div class="dialog-title">Last chance.</div>
+  <div class="dialog-body">Type the following exactly to confirm permanent deletion:<br><br><strong style="font-family:Caveat,cursive;font-size:15px;color:var(--rose)">when I die delete my hard drive bro</strong></div>
+  <input class="dialog-input" id="shredInput" type="text" placeholder="type the phrase above" autocomplete="off">
   <div class="dialog-btns">
     <button class="btn-danger" onclick="executeShred()">shred everything</button>
-    <button class="btn-secondary" onclick="hideDialog('shredDialog')">cancel</button>
+    <button class="btn-secondary" onclick="hideAllShred()">cancel</button>
   </div>
 </div>
 
@@ -327,11 +359,21 @@
     <div class="viz-meta" id="vizMeta"></div>
   </div>
 
-  <!-- ── SHRED ── -->
+  <!-- ── DOWNLOAD ── -->
   <div class="shred-section">
+    <div class="section-title">export your writing</div>
+    <div class="shred-desc">Download your writing as plain text files. Your words belong to you.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+      <button class="shred-btn" style="color:var(--ink-light);border-color:rgba(107,92,66,0.3)" onclick="promptDownload('page')">↓ download today's entry</button>
+      <button class="shred-btn" style="color:var(--ink-light);border-color:rgba(107,92,66,0.3)" onclick="promptDownload('all')">↓ download all entries</button>
+    </div>
+  </div>
+
+  <!-- ── SHRED ── -->
+  <div class="shred-section" style="margin-top:20px">
     <div class="section-title">danger zone</div>
     <div class="shred-desc">Permanently delete your entire journal — all entries, settings, and data. This cannot be undone. The words will be gone.</div>
-    <button class="shred-btn" onclick="showDialog('shredDialog')">✂ shred this journal</button>
+    <button class="shred-btn" onclick="shredStep1()">✂ shred this journal</button>
   </div>
 </div>
 
@@ -633,22 +675,144 @@ function renderViz(result, entry, ds) {
 }
 
 // ── SHRED ─────────────────────────────────────────────────────────────────────
+function shredStep1() {
+  hideAllShred();
+  showDialog('shredDialog1');
+}
+function shredStep2() {
+  hideAllShred();
+  showDialog('shredDialog2');
+}
+function shredStep3() {
+  hideAllShred();
+  document.getElementById('shredInput').value = '';
+  showDialog('shredDialog3');
+}
+function hideAllShred() {
+  ['shredDialog1','shredDialog2','shredDialog3'].forEach(id=>{
+    const el=document.getElementById(id);
+    if (el) el.classList.remove('show');
+  });
+  document.getElementById('dialogOverlay').classList.remove('show');
+}
+
 async function executeShred() {
-  const val = document.getElementById('shredInput').value.trim().toLowerCase();
-  if (val !== 'shred') {
+  const PHRASE = 'when I die delete my hard drive bro';
+  const val = document.getElementById('shredInput').value.trim();
+  if (val.toLowerCase() !== PHRASE.toLowerCase()) {
     document.getElementById('shredInput').style.borderColor='var(--rose)';
-    setTimeout(()=>document.getElementById('shredInput').style.borderColor='',1000);
+    document.getElementById('shredInput').placeholder='try again — type it exactly';
+    setTimeout(()=>{
+      document.getElementById('shredInput').style.borderColor='';
+      document.getElementById('shredInput').placeholder='type the phrase above';
+    },1400);
     return;
   }
-  hideDialog('shredDialog');
-
-  // Delete all entries and settings for this user
+  hideAllShred();
   await sb.from('entries').delete().eq('user_id',currentUser.id);
   await sb.from('user_settings').delete().eq('user_id',currentUser.id);
   localStorage.removeItem(`mp_starred_${currentUser.id}`);
-
-  showToast('Journal shredded', 'All entries have been permanently deleted.');
+  showToast('Journal shredded.', 'All entries have been permanently deleted.');
   setTimeout(()=>{ sb.auth.signOut(); window.location.href='index.html'; },2500);
+}
+
+// ── DOWNLOAD ──────────────────────────────────────────────────────────────────
+let downloadMode = null; // 'page' or 'all'
+
+function promptDownload(mode) {
+  downloadMode = mode;
+  document.getElementById('downloadPassword').value = '';
+  document.getElementById('downloadError').textContent = '';
+  document.getElementById('downloadDialogTitle').textContent =
+    mode === 'page' ? 'Download today's entry' : 'Download all entries';
+  document.getElementById('downloadDialogBody').textContent =
+    mode === 'page'
+      ? 'Enter your password to download today's writing as a text file.'
+      : 'Enter your password to download your complete journal archive.';
+  showDialog('downloadDialog');
+  setTimeout(()=>document.getElementById('downloadPassword').focus(), 300);
+}
+
+function hideDownload() { hideDialog('downloadDialog'); downloadMode=null; }
+
+async function executeDownload() {
+  const password = document.getElementById('downloadPassword').value;
+  const errEl    = document.getElementById('downloadError');
+  const btn      = document.getElementById('downloadConfirmBtn');
+
+  if (!password) { errEl.textContent = 'Please enter your password.'; return; }
+
+  btn.textContent = 'verifying…'; btn.disabled = true;
+
+  // Re-authenticate to verify password
+  const { error } = await sb.auth.signInWithPassword({
+    email: currentUser.email,
+    password: password
+  });
+
+  btn.textContent = 'download'; btn.disabled = false;
+
+  if (error) {
+    errEl.textContent = 'Incorrect password.';
+    document.getElementById('downloadPassword').value = '';
+    return;
+  }
+
+  hideDownload();
+
+  if (downloadMode === 'page') {
+    downloadSingleEntry();
+  } else {
+    downloadAllEntries();
+  }
+}
+
+function downloadSingleEntry() {
+  // Find today's entry — use most recent if viewing from dashboard
+  const today = new Date();
+  const ds = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const entry = allEntries.find(e=>e.date===ds);
+  if (!entry || !entry.text) {
+    showToast('Nothing to download', "Today's entry is empty.");
+    return;
+  }
+  const content = `Morning Pages — ${fmtDate(ds)}
+${'─'.repeat(40)}
+
+${entry.text}`;
+  triggerDownload(content, `morning-pages-${ds}.txt`);
+}
+
+function downloadAllEntries() {
+  const written = allEntries.filter(e=>e.text).sort((a,b)=>a.date.localeCompare(b.date));
+  if (!written.length) { showToast('Nothing to download', 'No entries found.'); return; }
+
+  const lines = [];
+  lines.push('Morning Pages — Complete Journal Archive');
+  lines.push(`Exported ${new Date().toLocaleDateString()} · ${written.length} entries`);
+  lines.push('═'.repeat(50));
+
+  for (const entry of written) {
+    lines.push('');
+    lines.push(fmtDate(entry.date));
+    lines.push('─'.repeat(30));
+    lines.push(entry.text);
+    lines.push('');
+  }
+
+  triggerDownload(lines.join('
+'), `morning-pages-archive-${new Date().toISOString().slice(0,10)}.txt`);
+  showToast('Archive downloaded ✦', `${written.length} entries exported.`);
+}
+
+function triggerDownload(content, filename) {
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
