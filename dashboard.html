@@ -820,37 +820,58 @@ async function signOut() { await sb.auth.signOut(); window.location.href='index.
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
-  const { data:{ session } } = await sb.auth.getSession();
-  if (!session) { window.location.href='index.html'; return; }
-  currentUser = session.user;
-  document.getElementById('userEmail').textContent=currentUser.email;
+  const ls = document.getElementById('loadingScreen');
+  const lt = ls.querySelector('.loading-text');
 
-  // Load all entries
-  const { data, error } = await sb.from('entries')
-    .select('date,text,peak_words,completed_pages,is_owl')
-    .eq('user_id',currentUser.id)
-    .order('date',{ascending:false});
+  try {
+    // Auth check
+    const { data: authData, error: authError } = await sb.auth.getSession();
+    if (authError) throw new Error('Auth error: ' + authError.message);
+    if (!authData.session) { window.location.href = 'index.html'; return; }
+    currentUser = authData.session.user;
+    document.getElementById('userEmail').textContent = currentUser.email;
 
-  if (!error && data) {
-    allEntries = data.map(r=>({
-      date:r.date, text:r.text||'',
-      peakWords:r.peak_words||0,
-      completedPages:r.completed_pages||0,
-      isOwl:r.is_owl||false
+    // Load entries
+    lt.textContent = 'loading entries…';
+    const { data, error } = await sb.from('entries')
+      .select('date,text,peak_words,completed_pages,is_owl')
+      .eq('user_id', currentUser.id)
+      .order('date', { ascending: false });
+
+    if (error) throw new Error('Entries load error: ' + error.message);
+
+    allEntries = (data || []).map(r => ({
+      date: typeof r.date === 'string' ? r.date.slice(0,10) : r.date,
+      text: r.text || '',
+      peakWords: r.peak_words || 0,
+      completedPages: r.completed_pages || 0,
+      isOwl: r.is_owl || false
     }));
+
+    loadStarred();
+    renderStarred();
+    populateVizSelector();
+
+    const params = new URLSearchParams(window.location.search);
+    const dateParam = params.get('star');
+    if (dateParam) toggleStar(dateParam);
+
+  } catch (err) {
+    console.error('Dashboard init error:', err);
+    lt.textContent = '⚠ ' + (err.message || 'Something went wrong loading the dashboard.');
+    lt.style.color = '#c97b84';
+    lt.style.fontSize = '14px';
+    // Add a manual continue link so user is never fully stuck
+    const link = document.createElement('a');
+    link.href = 'index.html';
+    link.textContent = '← back to sign in';
+    link.style.cssText = 'display:block;margin-top:16px;font-family:Caveat,cursive;font-size:14px;color:#b8a98a;text-decoration:none;';
+    ls.appendChild(link);
+    return; // don't hide loading screen — show the error
   }
 
-  loadStarred();
-  renderStarred();
-  populateVizSelector();
-
-  // Check if arriving from journal with a date to star
-  const params = new URLSearchParams(window.location.search);
-  const dateParam = params.get('star');
-  if (dateParam) { toggleStar(dateParam); }
-
-  const ls=document.getElementById('loadingScreen');
-  ls.classList.add('hidden'); setTimeout(()=>ls.style.display='none',500);
+  ls.classList.add('hidden');
+  setTimeout(() => ls.style.display = 'none', 500);
 }
 
 init();
