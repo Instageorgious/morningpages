@@ -741,7 +741,7 @@ async function loadSettings() {
 
 async function saveEntry(ds, dayData) {
   if (!currentUser) return;
-  const { error } = await sb.from('entries').upsert({
+  const payload = {
     user_id: currentUser.id,
     date: ds,
     text: dayData.text || '',
@@ -750,16 +750,39 @@ async function saveEntry(ds, dayData) {
     pages_carried: dayData.pagesCarried || 0,
     is_owl: dayData.isOwl || false,
     completed_at: dayData.completedAt || null,
-  }, { onConflict: 'user_id,date' });
+  };
+
+  // Check if row exists first, then insert or update
+  const { data: existing } = await sb.from('entries')
+    .select('id')
+    .eq('user_id', currentUser.id)
+    .eq('date', ds)
+    .maybeSingle();
+
+  let error;
+  if (existing) {
+    ({ error } = await sb.from('entries')
+      .update(payload)
+      .eq('user_id', currentUser.id)
+      .eq('date', ds));
+  } else {
+    ({ error } = await sb.from('entries').insert(payload));
+  }
+
   if (error) {
-    console.error('saveEntry error:', JSON.stringify(error));
-    document.getElementById('saveStatus').textContent = '⚠ save failed — check connection';
+    const msg = error.message || error.code || JSON.stringify(error);
+    console.error('saveEntry error:', msg);
+    document.getElementById('saveStatus').textContent = '⚠ ' + msg;
+  } else {
+    // Confirm save worked
+    console.log('saveEntry OK for', ds);
   }
 }
 
 async function saveSettings() {
+  if (!currentUser) return;
   const sd = state.streaks;
-  const { error } = await sb.from('user_settings').upsert({
+  const payload = {
     user_id: currentUser.id,
     day_start_time: state.dayStartTime,
     lifetime_words: state.lifetimeWords,
@@ -772,8 +795,23 @@ async function saveSettings() {
     streak_double_days: sd.doubleDaysCompleted,
     streak_bonus_days: sd.bonusStreakDays,
     streak_window_expires: sd.windowExpires,
-  }, { onConflict: 'user_id' });
-  if (error) console.error('saveSettings', error);
+  };
+
+  const { data: existing } = await sb.from('user_settings')
+    .select('user_id')
+    .eq('user_id', currentUser.id)
+    .maybeSingle();
+
+  let error;
+  if (existing) {
+    ({ error } = await sb.from('user_settings')
+      .update(payload)
+      .eq('user_id', currentUser.id));
+  } else {
+    ({ error } = await sb.from('user_settings').insert(payload));
+  }
+
+  if (error) console.error('saveSettings error:', JSON.stringify(error));
 }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
@@ -1213,10 +1251,13 @@ async function save(auto) {
 
 function manualSave() { save(false); }
 
-// Debounced autosave — queues a save 3s after last keystroke, avoids hammering Supabase
+// Debounced autosave — queues a save 3s after last keystroke
 function scheduleAutosave() {
   clearTimeout(autosaveTimer);
-  autosaveTimer=setTimeout(()=>save(true),AUTOSAVE_MS);
+  autosaveTimer = setTimeout(() => {
+    console.log('Autosave firing. currentUser:', currentUser?.id, 'todayStr:', todayStr);
+    save(true);
+  }, AUTOSAVE_MS);
 }
 
 // ── CARRY FORWARD ─────────────────────────────────────────────────────────────
@@ -1323,56 +1364,63 @@ setInterval(async ()=>{
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
-  // Auth gate
-  const { data: { session } } = await sb.auth.getSession();
-  if (!session) { window.location.href='index.html'; return; }
-  currentUser=session.user;
-  document.getElementById('userEmail').textContent=currentUser.email;
-
-  // Test connection and load data from Supabase
   try {
+    // Auth gate
+    const { data: authData, error: authError } = await sb.auth.getSession();
+    if (authError) throw new Error('Auth failed: ' + authError.message);
+    if (!authData.session) { window.location.href='index.html'; return; }
+    currentUser = authData.session.user;
+    document.getElementById('userEmail').textContent = currentUser.email;
+
+    // Load data from Supabase
     await Promise.all([loadAllEntries(), loadSettings()]);
-  } catch(e) {
-    console.error('Data load failed:', e);
-    document.getElementById('saveStatus').textContent = '⚠ could not reach database';
+
+    today    = computeToday();
+    todayStr = dateStr(today);
+    await checkCarryForward();
+    detectStreakBreak();
+
+    document.getElementById('journalDate').textContent =
+      today.toLocaleDateString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    document.getElementById('dayStartTime').value = state.dayStartTime || '00:00';
+
+    renderCalendar(); renderStreaks(); updateRepairBanner();
+
+    const data = getDayData(todayStr);
+    document.getElementById('journalTextarea').value = data.text || '';
+    sessionPeakWords  = data.peakWords || 0;
+    displayedWords    = sessionPeakWords;
+    completionReached = (data.completedPages || 0) >= PAGES_GOAL;
+    if (completionReached) confettiDone = true;
+
+    rebuildStack(displayedWords, false);
+    updateWordDisplay();
+
+    const ta = document.getElementById('journalTextarea');
+    ta.style.height = 'auto';
+    ta.style.height = Math.max(480, ta.scrollHeight) + 'px';
+
+    if ('Notification' in window && Notification.permission === 'default') {
+      const p = document.getElementById('notifPrompt');
+      p.style.display = 'flex';
+      setTimeout(() => p.classList.remove('hidden'), 1200);
+    }
+
+    window.addEventListener('resize', updateProgress);
+    setTimeout(updateProgress, 100);
+
+    // Signal ready — save status shows connection is live
+    document.getElementById('saveStatus').textContent = 'ready';
+    setTimeout(() => {
+      if (document.getElementById('saveStatus').textContent === 'ready')
+        document.getElementById('saveStatus').textContent = '';
+    }, 2000);
+
+  } catch(err) {
+    console.error('Init error:', err);
+    // Show error visibly so it is never silent
+    document.getElementById('saveStatus').textContent = '⚠ ' + (err.message || 'startup error — try refreshing');
   }
-
-  today=computeToday(); todayStr=dateStr(today);
-  await checkCarryForward();
-  detectStreakBreak();
-
-  document.getElementById('journalDate').textContent=today.toLocaleDateString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-  document.getElementById('dayStartTime').value=state.dayStartTime||'00:00';
-
-  renderCalendar(); renderStreaks(); updateRepairBanner();
-
-  const data=getDayData(todayStr);
-  document.getElementById('journalTextarea').value=data.text||'';
-  sessionPeakWords=data.peakWords||0;
-  displayedWords=sessionPeakWords;
-  completionReached=(data.completedPages||0)>=PAGES_GOAL;
-  if (completionReached) confettiDone=true;
-
-  rebuildStack(displayedWords,false);
-  updateWordDisplay();
-
-  const ta=document.getElementById('journalTextarea');
-  ta.style.height='auto';
-  ta.style.height=Math.max(480,ta.scrollHeight)+'px';
-
-  // Notification prompt
-  if ('Notification' in window&&Notification.permission==='default') {
-    const p=document.getElementById('notifPrompt');
-    p.style.display='flex'; setTimeout(()=>p.classList.remove('hidden'),1200);
-  }
-
-  window.addEventListener('resize',updateProgress);
-  setTimeout(updateProgress,100);
-
-  // Fade out loading screen
-  const ls=document.getElementById('loadingScreen');
-  ls.classList.add('hidden');
-  setTimeout(()=>ls.style.display='none',500);
 }
 
 function starCurrentEntry(e) {
