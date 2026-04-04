@@ -341,7 +341,8 @@
       <select class="entry-select" id="vizEntrySelect">
         <option value="">— choose an entry —</option>
       </select>
-      <button class="analyze-btn" id="analyzeBtn" onclick="analyzeEntry()" disabled>analyze ✦</button>
+      <button class="analyze-btn" id="analyzeBtn" onclick="analyzeEntry()" disabled>ai analyze ✦</button>
+      <button class="analyze-btn" id="analyzeLocalBtn" onclick="analyzeLocal()" disabled style="background:var(--parchment-warm);color:var(--ink-light);border:1px solid var(--parchment-deep);">local analyze</button>
     </div>
     <div class="viz-canvas" id="vizCanvas">
       <div class="viz-placeholder" id="vizPlaceholder">select an entry and analyze to see its emotional landscape</div>
@@ -543,7 +544,9 @@ function populateVizSelector() {
   }
 
   sel.addEventListener('change', () => {
-    document.getElementById('analyzeBtn').disabled = !sel.value;
+    const hasValue = !!sel.value;
+    document.getElementById('analyzeBtn').disabled = !hasValue;
+    document.getElementById('analyzeLocalBtn').disabled = !hasValue;
   });
 }
 
@@ -553,72 +556,157 @@ function countWordsLocal(text) {
 }
 
 // ── EMOTIONAL ANALYSIS via Anthropic API ──────────────────────────────────────
+// ── SHARED UI helpers for analysis ───────────────────────────────────────────
+function startAnalysisUI(btnId) {
+  document.getElementById('vizPlaceholder').style.display = 'none';
+  document.getElementById('analysisLoading').classList.add('visible');
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('analyzeLocalBtn').disabled = true;
+  document.getElementById('vizMeta').innerHTML = '';
+  document.getElementById('emotionLegend').style.display = 'none';
+  document.getElementById('analysisLoading').querySelector('.analysis-loading-text').textContent =
+    btnId === 'analyzeBtn' ? 'reading between the lines…' : 'scanning locally…';
+}
+
+function endAnalysisUI(errMsg) {
+  document.getElementById('analysisLoading').classList.remove('visible');
+  document.getElementById('analyzeBtn').disabled = false;
+  document.getElementById('analyzeLocalBtn').disabled = false;
+  if (errMsg) {
+    const ph = document.getElementById('vizPlaceholder');
+    ph.style.display = 'flex';
+    ph.textContent = errMsg;
+  }
+}
+
+// ── OPTION A: AI analyze via Supabase Edge Function ───────────────────────────
 async function analyzeEntry() {
   const ds = document.getElementById('vizEntrySelect').value;
   if (!ds) return;
-  const entry = allEntries.find(e=>e.date===ds);
-  if (!entry||!entry.text) return;
+  const entry = allEntries.find(e => e.date === ds);
+  if (!entry || !entry.text) return;
 
-  // UI loading state
-  document.getElementById('vizPlaceholder').style.display='none';
-  const loading = document.getElementById('analysisLoading');
-  loading.classList.add('visible');
-  document.getElementById('analyzeBtn').disabled=true;
-  document.getElementById('vizMeta').innerHTML='';
-  document.getElementById('emotionLegend').style.display='none';
+  startAnalysisUI('analyzeBtn');
 
   try {
-    const prompt = `Analyze this journal entry for emotional content and writing characteristics.
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) throw new Error('Not authenticated');
 
-Respond ONLY with a valid JSON object, no markdown, no explanation, exactly this shape:
-{
-  "emotions": {
-    "joy": <0-100>,
-    "anger": <0-100>,
-    "sadness": <0-100>,
-    "fear": <0-100>,
-    "disgust": <0-100>,
-    "eros": <0-100>
-  },
-  "rating": "<E|T|M|MA>",
-  "ratingReason": "<one short sentence>",
-  "tempo": "<slow|moderate|fast>",
-  "distractionLevel": "<focused|some pauses|fragmented>",
-  "dominantThemes": ["<theme1>","<theme2>","<theme3>"]
+    const response = await fetch(
+      `${SUPABASE_URL}/functions/v1/analyze-entry`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          text: entry.text,
+          date: fmtDate(ds),
+          wordCount: entry.peakWords || countWordsLocal(entry.text),
+        }),
+      }
+    );
+
+    const json = await response.json();
+    if (!response.ok || json.error) throw new Error(json.error || 'Edge function error');
+
+    renderViz(json.result, entry, ds);
+  } catch(err) {
+    console.error('AI analysis error:', err);
+    endAnalysisUI('AI analysis failed — try local analyze instead.');
+    return;
+  }
+  endAnalysisUI(null);
 }
 
-Rating guide: E=suitable for everyone, T=teen (mild themes), M=mature 17+ (adult themes, strong emotion, sexuality implied), MA=adults only (explicit content).
-Emotion values should sum to approximately 200 (entries can hold multiple emotions simultaneously).
-Tempo is your read of the writing's energy and pace.
+// ── OPTION B: Local analysis — keyword scoring, no API call ───────────────────
+function analyzeLocal() {
+  const ds = document.getElementById('vizEntrySelect').value;
+  if (!ds) return;
+  const entry = allEntries.find(e => e.date === ds);
+  if (!entry || !entry.text) return;
 
-Journal entry (${entry.peakWords||0} words, written ${fmtDate(ds)}):
----
-${entry.text.slice(0,3000)}`;
+  startAnalysisUI('analyzeLocalBtn');
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:500,
-        messages:[{role:'user',content:prompt}]
-      })
-    });
-
-    const data = await response.json();
-    const raw = data.content?.[0]?.text || '';
-    const clean = raw.replace(/```json|```/g,'').trim();
-    const result = JSON.parse(clean);
-
+  try {
+    const result = localScore(entry.text);
     renderViz(result, entry, ds);
+    endAnalysisUI(null);
   } catch(err) {
-    console.error('Analysis error:', err);
-    document.getElementById('vizPlaceholder').style.display='flex';
-    document.getElementById('vizPlaceholder').textContent='Analysis failed — try again in a moment.';
-  } finally {
-    loading.classList.remove('visible');
-    document.getElementById('analyzeBtn').disabled=false;
+    console.error('Local analysis error:', err);
+    endAnalysisUI('Local analysis failed.');
   }
+}
+
+function localScore(text) {
+  const t = text.toLowerCase();
+  const words = t.split(/\s+/).filter(w => w.length > 0);
+  const wordCount = words.length;
+  const wset = new Set(words);
+
+  const LEXICON = {
+    joy:     ['happy','joy','love','wonderful','great','excited','grateful','bliss','delight','laugh','smile','celebrate','pleasure','fun','peace','beautiful','hope','bright','warmth','grateful','thankful','alive','free','play','enjoy'],
+    anger:   ['angry','rage','furious','hate','frustrat','annoy','bitter','resent','mad','infuriat','irritat','hostil','aggress','contempt','disgust','scream','fight','conflict','tension','explod'],
+    sadness: ['sad','grief','loss','mourn','depress','cry','tears','lonely','empty','hopeless','despair','hurt','pain','heartbreak','miss','gone','never','alone','sorrow','ache','hollow','numb','drain'],
+    fear:    ['afraid','fear','anxious','worry','panic','dread','terror','nervous','stress','danger','threat','scary','uncertain','unsafe','doubt','hesitat','overwhelm','trap','stuck','avoid'],
+    disgust: ['disgust','sick','revolting','gross','nasty','awful','horrible','terrible','repuls','vile','foul','wrong','bad','toxic','corrupt','hollow','fake','shallow','hypocrit'],
+    eros:    ['desire','attract','intimat','passion','sensual','erotic','touch','body','naked','sex','love','lust','yearn','longing','tender','kiss','warm','close','deep','connect','vulnerabl'],
+  };
+
+  const scores = {};
+  for (const [emotion, keywords] of Object.entries(LEXICON)) {
+    let score = 0;
+    for (const kw of keywords) {
+      for (const w of words) {
+        if (w.startsWith(kw)) score++;
+      }
+    }
+    scores[emotion] = score;
+  }
+
+  // Normalize to 0-100 range, scale so total ~200
+  const maxRaw = Math.max(...Object.values(scores), 1);
+  const emotions = {};
+  for (const [k, v] of Object.entries(scores)) {
+    emotions[k] = Math.round((v / maxRaw) * 80);
+  }
+
+  // Ensure at least a baseline so orbs always appear
+  const total = Object.values(emotions).reduce((s,v)=>s+v,0);
+  if (total < 20) {
+    emotions.joy = Math.max(emotions.joy, 15);
+  }
+
+  // Tempo: words per sentence
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const avgSentLen = wordCount / Math.max(sentences.length, 1);
+  const tempo = avgSentLen < 10 ? 'fast' : avgSentLen < 18 ? 'moderate' : 'slow';
+
+  // Distraction: variance in paragraph length
+  const paragraphs = text.split(/
++/).filter(p => p.trim().length > 0);
+  const distractionLevel = paragraphs.length > 6 ? 'fragmented' : paragraphs.length > 2 ? 'some pauses' : 'focused';
+
+  // Rating: based on eros + anger scores
+  let rating = 'E';
+  if (emotions.eros > 30 || emotions.anger > 40) rating = 'T';
+  if (emotions.eros > 50 || emotions.anger > 60) rating = 'M';
+  if (emotions.eros > 70 || emotions.anger > 75) rating = 'MA';
+
+  // Dominant themes: top 3 emotion labels
+  const sorted = Object.entries(emotions).sort((a,b)=>b[1]-a[1]);
+  const dominantThemes = sorted.slice(0,3).map(([k])=>k);
+
+  return {
+    emotions,
+    rating,
+    ratingReason: `Local scoring based on ${wordCount} words`,
+    tempo,
+    distractionLevel,
+    dominantThemes,
+    isLocal: true,
+  };
 }
 
 function renderViz(result, entry, ds) {
@@ -681,8 +769,12 @@ function renderViz(result, entry, ds) {
   // Metadata row
   const rating = RATINGS.find(r=>r.key===result.rating)||RATINGS[0];
   const themes = (result.dominantThemes||[]).slice(0,3).join(' · ');
+  const sourceTag = result.isLocal
+    ? '<span style="font-family:Caveat,cursive;font-size:12px;color:var(--ink-faint);border:1px solid var(--parchment-deep);border-radius:4px;padding:1px 6px">local</span>'
+    : '<span style="font-family:Caveat,cursive;font-size:12px;color:var(--accent);border:1px solid var(--dawn);border-radius:4px;padding:1px 6px">ai ✦</span>';
   const meta = document.getElementById('vizMeta');
   meta.innerHTML=`
+    <div class="viz-meta-item">${sourceTag}</div>
     <div class="viz-meta-item"><span class="rating-badge ${rating.class}">${rating.key}</span> ${rating.label}</div>
     <div class="viz-meta-item">⚡ ${result.tempo||'—'}</div>
     <div class="viz-meta-item">☕ ${result.distractionLevel||'—'}</div>
