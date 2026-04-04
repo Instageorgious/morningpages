@@ -829,8 +829,7 @@ function downloadAllEntries() {
     lines.push('');
   }
 
-  triggerDownload(lines.join('
-'), `morning-pages-archive-${new Date().toISOString().slice(0,10)}.txt`);
+  triggerDownload(lines.join('\n'), `morning-pages-archive-${new Date().toISOString().slice(0,10)}.txt`);
   showToast('Archive downloaded ✦', `${written.length} entries exported.`);
 }
 
