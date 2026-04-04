@@ -684,8 +684,7 @@ function localScore(text) {
   const tempo = avgSentLen < 10 ? 'fast' : avgSentLen < 18 ? 'moderate' : 'slow';
 
   // Distraction: variance in paragraph length
-  const paragraphs = text.split(/
-+/).filter(p => p.trim().length > 0);
+  const paragraphs = text.split(/\n+/).filter(p => p.trim().length > 0);
   const distractionLevel = paragraphs.length > 6 ? 'fragmented' : paragraphs.length > 2 ? 'some pauses' : 'focused';
 
   // Rating: based on eros + anger scores
