@@ -396,15 +396,6 @@
   .info-close { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 18px; color: var(--ink-faint); cursor: pointer; line-height: 1; }
   .info-close:hover { color: var(--ink); }
 
-  /* ── LOADING SCREEN ── */
-  .loading-screen {
-    position: fixed; inset: 0; background: var(--parchment);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 9999; transition: opacity 0.4s;
-  }
-  .loading-screen.hidden { opacity: 0; pointer-events: none; }
-  .loading-text { font-family: 'Playfair Display', serif; font-size: 22px; font-style: italic; color: var(--ink-faint); }
-
   @media (max-width: 600px) {
     .journal-area { padding: 20px 16px 20px 44px; }
     .journal-textarea { font-size: 16px; }
@@ -412,11 +403,6 @@
 </style>
 </head>
 <body>
-
-<!-- Loading screen -->
-<div class="loading-screen" id="loadingScreen">
-  <div class="loading-text">opening the page…</div>
-</div>
 
 <!-- Info button -->
 <button class="info-btn" onclick="toggleInfo()" title="About Morning Pages">ℹ️</button>
@@ -749,7 +735,6 @@ async function saveEntry(ds, dayData) {
     completed_pages: dayData.completedPages || 0,
     pages_carried: dayData.pagesCarried || 0,
     is_owl: dayData.isOwl || false,
-    completed_at: dayData.completedAt || null,
   };
 
   // Check if row exists first, then insert or update
