@@ -753,10 +753,10 @@ function promptDownload(mode) {
   document.getElementById('downloadPassword').value = '';
   document.getElementById('downloadError').textContent = '';
   document.getElementById('downloadDialogTitle').textContent =
-    mode === 'page' ? 'Download today's entry' : 'Download all entries';
+    mode === "page" ? "Download today's entry" : "Download all entries";
   document.getElementById('downloadDialogBody').textContent =
     mode === 'page'
-      ? 'Enter your password to download today's writing as a text file.'
+      ? "Enter your password to download today's writing as a text file."
       : 'Enter your password to download your complete journal archive.';
   showDialog('downloadDialog');
   setTimeout(()=>document.getElementById('downloadPassword').focus(), 300);
