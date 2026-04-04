@@ -314,6 +314,11 @@
 
   <div class="page-title">the archive</div>
   <div class="page-sub">search, explore, and understand your writing</div>
+  <div style="text-align:center;margin-bottom:16px;font-family:'Caveat',cursive;font-size:13px;color:var(--ink-faint)">
+    <span id="entryCount">loading…</span>
+    &nbsp;·&nbsp;
+    <a href="#" onclick="refreshEntries();return false;" style="color:var(--ink-faint);text-decoration:underline;cursor:pointer">refresh</a>
+  </div>
 
   <!-- ── SEARCH ── -->
   <div class="section-title">search entries</div>
@@ -508,16 +513,43 @@ function runSearch(query) {
 // ── VIZ ENTRY SELECTOR ────────────────────────────────────────────────────────
 function populateVizSelector() {
   const sel = document.getElementById('vizEntrySelect');
-  const written = allEntries.filter(e=>e.text&&e.text.length>50).sort((a,b)=>b.date.localeCompare(a.date));
+  // Clear existing options except placeholder
+  while (sel.options.length > 1) sel.remove(1);
+
+  const today = new Date();
+  const todayDs = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+  // Include all entries with any text — in-progress today counts too
+  const written = allEntries
+    .filter(e => e.text && e.text.trim().length > 0)
+    .sort((a,b) => b.date.localeCompare(a.date));
+
   for (const e of written) {
     const opt = document.createElement('option');
     opt.value = e.date;
-    opt.textContent = `${fmtDate(e.date)} (${e.peakWords||0} words)`;
+    const isToday = e.date === todayDs;
+    const words = e.peakWords || countWordsLocal(e.text);
+    opt.textContent = isToday
+      ? `Today — in progress (${words} words)`
+      : `${fmtDate(e.date)} (${words} words)`;
     sel.appendChild(opt);
   }
-  sel.addEventListener('change',()=>{
+
+  if (!written.length) {
+    const opt = document.createElement('option');
+    opt.disabled = true;
+    opt.textContent = 'No entries yet — write something first';
+    sel.appendChild(opt);
+  }
+
+  sel.addEventListener('change', () => {
     document.getElementById('analyzeBtn').disabled = !sel.value;
   });
+}
+
+function countWordsLocal(text) {
+  if (!text) return 0;
+  return text.trim().split(/\s+/).filter(w => w.length > 0).length;
 }
 
 // ── EMOTIONAL ANALYSIS via Anthropic API ──────────────────────────────────────
@@ -815,6 +847,44 @@ function triggerDownload(content, filename) {
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 async function signOut() { await sb.auth.signOut(); window.location.href='index.html'; }
 
+function updateEntryCount() {
+  const written = allEntries.filter(e => e.text && e.text.trim().length > 0);
+  const el = document.getElementById('entryCount');
+  if (!el) return;
+  if (!written.length) {
+    el.textContent = 'no entries yet — start writing!';
+  } else {
+    const totalWords = written.reduce((s, e) => s + (e.peakWords || countWordsLocal(e.text)), 0);
+    el.textContent = `${written.length} entr${written.length === 1 ? 'y' : 'ies'} · ${totalWords.toLocaleString()} words total`;
+  }
+}
+
+async function refreshEntries() {
+  if (!currentUser) return;
+  document.getElementById('entryCount').textContent = 'refreshing…';
+  const { data, error } = await sb.from('entries')
+    .select('date,text,peak_words,completed_pages,is_owl')
+    .eq('user_id', currentUser.id)
+    .order('date', { ascending: false });
+  if (error) {
+    document.getElementById('entryCount').textContent = '⚠ refresh failed';
+    return;
+  }
+  allEntries = (data || []).map(r => ({
+    date: typeof r.date === 'string' ? r.date.slice(0,10) : r.date,
+    text: r.text || '',
+    peakWords: r.peak_words || 0,
+    completedPages: r.completed_pages || 0,
+    isOwl: r.is_owl || false
+  }));
+  renderStarred();
+  populateVizSelector();
+  updateEntryCount();
+  // Re-run search if active
+  const q = document.getElementById('searchInput').value.trim();
+  if (q) runSearch(q);
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 async function init() {
   try {
@@ -844,6 +914,7 @@ async function init() {
     loadStarred();
     renderStarred();
     populateVizSelector();
+    updateEntryCount();
 
     const params = new URLSearchParams(window.location.search);
     const dateParam = params.get('star');
