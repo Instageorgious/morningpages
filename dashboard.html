@@ -731,67 +731,114 @@ function localScore(text) {
   const t = text.toLowerCase();
   const words = t.split(/\s+/).filter(w => w.length > 0);
   const wordCount = words.length;
-  const wset = new Set(words);
 
   const LEXICON = {
-    joy:     ['happy','joy','love','wonderful','great','excited','grateful','bliss','delight','laugh','smile','celebrate','pleasure','fun','peace','beautiful','hope','bright','warmth','grateful','thankful','alive','free','play','enjoy'],
-    anger:   ['angry','rage','furious','hate','frustrat','annoy','bitter','resent','mad','infuriat','irritat','hostil','aggress','contempt','disgust','scream','fight','conflict','tension','explod'],
-    sadness: ['sad','grief','loss','mourn','depress','cry','tears','lonely','empty','hopeless','despair','hurt','pain','heartbreak','miss','gone','never','alone','sorrow','ache','hollow','numb','drain'],
-    fear:    ['afraid','fear','anxious','worry','panic','dread','terror','nervous','stress','danger','threat','scary','uncertain','unsafe','doubt','hesitat','overwhelm','trap','stuck','avoid'],
-    disgust: ['disgust','sick','revolting','gross','nasty','awful','horrible','terrible','repuls','vile','foul','wrong','bad','toxic','corrupt','hollow','fake','shallow','hypocrit'],
-    eros:    ['desire','attract','intimat','passion','sensual','erotic','touch','body','naked','sex','love','lust','yearn','longing','tender','kiss','warm','close','deep','connect','vulnerabl'],
+    joy:       ['happy','joy','love','wonderful','great','excited','grateful','bliss','delight','laugh','smile','celebrate','pleasure','fun','peace','beautiful','hope','bright','warmth','thankful','alive','free','play','enjoy','light','cheer','glad','thrill'],
+    anger:     ['angry','rage','furious','hate','frustrat','annoy','bitter','resent','mad','infuriat','irritat','hostil','aggress','contempt','scream','fight','conflict','tension','explod','disgust','resentment'],
+    sadness:   ['sad','grief','loss','mourn','depress','cry','tears','lonely','empty','hopeless','despair','hurt','pain','heartbreak','miss','gone','alone','sorrow','ache','hollow','numb','drain','tired','heavy','dark'],
+    fear:      ['afraid','fear','anxious','worry','panic','dread','terror','nervous','stress','danger','threat','scary','uncertain','unsafe','doubt','hesitat','overwhelm','trap','stuck','avoid','shake','freeze'],
+    disgust:   ['disgust','sick','revolting','gross','nasty','awful','horrible','terrible','repuls','vile','foul','wrong','toxic','corrupt','fake','shallow','hypocrit','repel','putrid'],
+    eros:      ['desire','attract','intimat','passion','sensual','erotic','touch','naked','sex','lust','yearn','longing','tender','kiss','warm','close','deep','connect','vulnerabl','crave','pull','hunger'],
+    rigidity:  ['must','should','always','never','cannot','rigid','fixed','certain','definite','rule','strict','control','force','bound','constraint','trapped','unchang','static','immov'],
+    curiosity: ['wonder','curious','explore','discover','question','learn','seek','open','possible','imagine','interest','fascinat','investigat','puzzle','unknown','new','why','how','what if'],
+    gratitude: ['grateful','thankful','bless','appreciat','gift','fortune','lucky','grace','kind','generous','received','given','full','enough','abundan','richness'],
   };
 
-  const scores = {};
-  for (const [emotion, keywords] of Object.entries(LEXICON)) {
-    let score = 0;
-    for (const kw of keywords) {
-      for (const w of words) {
-        if (w.startsWith(kw)) score++;
+  // Score each word against the lexicon
+  const wordScores = {}; // word -> {emotion, score}
+  const emotionRaw = {};
+  for (const key of Object.keys(LEXICON)) emotionRaw[key] = 0;
+
+  for (const w of words) {
+    let bestEmotion = null, bestScore = 0;
+    for (const [emotion, keywords] of Object.entries(LEXICON)) {
+      for (const kw of keywords) {
+        if (w.startsWith(kw)) {
+          emotionRaw[emotion]++;
+          if (emotionRaw[emotion] > bestScore) { bestScore = emotionRaw[emotion]; bestEmotion = emotion; }
+          if (!wordScores[w] || wordScores[w].score < 1) wordScores[w] = { emotion, score: 1 };
+        }
       }
     }
-    scores[emotion] = score;
   }
 
-  // Normalize to 0-100 range, scale so total ~200
-  const maxRaw = Math.max(...Object.values(scores), 1);
+  // Normalize emotions to 0-100
+  const maxRaw = Math.max(...Object.values(emotionRaw), 1);
   const emotions = {};
-  for (const [k, v] of Object.entries(scores)) {
+  for (const [k, v] of Object.entries(emotionRaw)) {
     emotions[k] = Math.round((v / maxRaw) * 80);
   }
-
-  // Ensure at least a baseline so orbs always appear
   const total = Object.values(emotions).reduce((s,v)=>s+v,0);
-  if (total < 20) {
-    emotions.joy = Math.max(emotions.joy, 15);
-  }
+  if (total < 20) emotions.joy = Math.max(emotions.joy, 15);
 
-  // Tempo: words per sentence
+  // Valence — derive from emotion scores
+  const pos = Math.round(((emotions.joy||0) + (emotions.curiosity||0) + (emotions.gratitude||0)) / 2.4);
+  const neg = Math.round(((emotions.anger||0) + (emotions.sadness||0) + (emotions.fear||0) + (emotions.disgust||0)) / 3.2);
+  const neu = Math.max(0, 100 - pos - neg);
+  const valence = { positivity: pos, negativity: neg, neutrality: neu };
+
+  // Tempo
   const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
   const avgSentLen = wordCount / Math.max(sentences.length, 1);
   const tempo = avgSentLen < 10 ? 'fast' : avgSentLen < 18 ? 'moderate' : 'slow';
 
-  // Distraction: variance in paragraph length
+  // Distraction
   const paragraphs = text.split(/\n+/).filter(p => p.trim().length > 0);
   const distractionLevel = paragraphs.length > 6 ? 'fragmented' : paragraphs.length > 2 ? 'some pauses' : 'focused';
 
-  // Rating: based on eros + anger scores
+  // Rating
   let rating = 'E';
-  if (emotions.eros > 30 || emotions.anger > 40) rating = 'T';
-  if (emotions.eros > 50 || emotions.anger > 60) rating = 'M';
-  if (emotions.eros > 70 || emotions.anger > 75) rating = 'MA';
+  if ((emotions.eros||0) > 30 || (emotions.anger||0) > 40) rating = 'T';
+  if ((emotions.eros||0) > 50 || (emotions.anger||0) > 60) rating = 'M';
+  if ((emotions.eros||0) > 70 || (emotions.anger||0) > 75) rating = 'MA';
 
-  // Dominant themes: top 3 emotion labels
-  const sorted = Object.entries(emotions).sort((a,b)=>b[1]-a[1]);
-  const dominantThemes = sorted.slice(0,3).map(([k])=>k);
+  // Dominant themes
+  const sortedEm = Object.entries(emotions).sort((a,b)=>b[1]-a[1]);
+  const dominantThemes = sortedEm.slice(0,3).map(([k])=>k);
+  const top3keys = dominantThemes;
+
+  // topWords — pick up to 15 matched words, weighted by lexicon hit count
+  const topWords = Object.entries(wordScores)
+    .filter(([w, info]) => top3keys.includes(info.emotion))
+    .sort((a,b) => b[1].score - a[1].score)
+    .slice(0, 15)
+    .map(([word, info]) => ({ word, emotion: info.emotion, weight: Math.min(100, info.score * 20 + 40) }));
+
+  // Fill up to 15 with any matched words if we don't have enough from top 3
+  if (topWords.length < 8) {
+    const extra = Object.entries(wordScores)
+      .filter(([w]) => !topWords.find(t => t.word === w))
+      .slice(0, 15 - topWords.length)
+      .map(([word, info]) => ({ word, emotion: info.emotion, weight: 35 }));
+    topWords.push(...extra);
+  }
+
+  // phraseHighlights — find sentences that contain high-scoring emotion words
+  const phraseHighlights = [];
+  const allSentences = text.match(/[^.!?\n]{10,}/g) || [];
+  for (const emotionKey of top3keys) {
+    const kwList = LEXICON[emotionKey] || [];
+    const matching = allSentences.filter(s =>
+      kwList.some(kw => s.toLowerCase().includes(kw))
+    ).slice(0, 2);
+    for (const s of matching) {
+      const trimmed = s.trim().split(/\s+/).slice(0,8).join(' ');
+      if (trimmed.length > 4) {
+        phraseHighlights.push({ phrase: trimmed, emotion: emotionKey, weight: 70 });
+      }
+    }
+  }
 
   return {
     emotions,
+    valence,
     rating,
     ratingReason: `Local scoring based on ${wordCount} words`,
     tempo,
     distractionLevel,
     dominantThemes,
+    topWords,
+    phraseHighlights,
     isLocal: true,
   };
 }
