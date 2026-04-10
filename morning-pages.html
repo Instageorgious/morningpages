@@ -541,6 +541,7 @@
       <textarea id="journalTextarea" class="journal-textarea"
         placeholder="Begin here. Let the words come…"
         spellcheck="true" autocorrect="on"></textarea>
+      <div id="caretSentinel" style="height:0;width:100%;position:relative"></div>
     </div>
   </div>
 
@@ -858,6 +859,13 @@ function renderCalendar() {
     } else if (isToday) {
       dot.classList.add('today');
       if ((state.days[ds]?.completedPages||0)>0) dot.classList.add('partial');
+      // Always clickable — returns to today's writing from any past-day view
+      dot.classList.add('clickable');
+      dot.addEventListener('click', () => {
+        viewingDate = null;
+        renderViewingDay();
+        window.scrollTo({top:0, behavior:'smooth'});
+      });
     } else if (isPast) {
       dot.classList.add('past-empty');
     }
@@ -928,7 +936,12 @@ function showMonthDays(year, month, allWritten) {
 }
 
 // ── DAY NAVIGATION ────────────────────────────────────────────────────────────
-function jumpToDay(ds) { viewingDate=ds; renderViewingDay(); window.scrollTo({top:0,behavior:'smooth'}); }
+function jumpToDay(ds) {
+  // Today is always viewingDate=null so it stays editable
+  viewingDate = (ds === todayStr) ? null : ds;
+  renderViewingDay();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
 function navigateDay(delta) {
   const base=viewingDate||todayStr;
   const next=addDays(base,delta);
@@ -1323,9 +1336,23 @@ document.getElementById('journalTextarea').addEventListener('input', function() 
     doubleReached=true; handleDoubleDay();
   }
 
-  // Auto-resize (no scroll jitter — textarea grows naturally, page scrolls normally)
+  // Auto-resize — textarea grows naturally
   this.style.height='auto';
   this.style.height=Math.max(480,this.scrollHeight)+'px';
+
+  // Keep caret visible above the footer without jitter
+  // We use a sentinel div pinned below the textarea and scroll it into view
+  const footer = document.querySelector('.page-footer');
+  if (footer) {
+    const footerTop  = footer.getBoundingClientRect().top;
+    const caretEl    = document.getElementById('caretSentinel');
+    if (caretEl) {
+      const caretTop = caretEl.getBoundingClientRect().top;
+      if (caretTop > footerTop - 48) {
+        window.scrollBy({ top: caretTop - footerTop + 80, behavior: 'smooth' });
+      }
+    }
+  }
 
   scheduleAutosave();
 });
