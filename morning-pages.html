@@ -224,18 +224,29 @@
     border: 1px solid var(--parchment-mid); border-radius: 2px;
     box-shadow: inset 0 1px 3px rgba(0,0,0,0.04);
     padding: 24px 32px 24px 64px;
+    /* keep all your existing styles, add these: */
+  overflow: hidden;
+  box-sizing: border-box;
     background-image:
       repeating-linear-gradient(transparent, transparent 27px, rgba(166,146,104,0.18) 27px, rgba(166,146,104,0.18) 28px),
       linear-gradient(to right, #f5c5c5 0px, #f5c5c5 1px, transparent 1px, transparent 55px, rgba(166,146,104,0.1) 55px, rgba(166,146,104,0.1) 56px);
   }
   .journal-textarea {
-    width: 100%; min-height: 480px; background: transparent;  height: calc(100vh - [footer height]px - [header height]px);
+   width: 100%;
+  height: calc(78vh - 20%);
+  background: transparent;
   overflow-y: auto;
-  overflow-anchor: none;    /* this kills the snap/jitter */
+  overflow-anchor: none;
   resize: none;
-    border: none; outline: none; resize: none; scroll-behavior: smooth; overflow-y: auto;
-    font-family: 'Lora', serif; font-size: 17px; line-height: 28px;
-    color: var(--ink); caret-color: var(--accent); overflow: hidden;
+  border: none;
+  outline: none;
+  scroll-behavior: smooth;
+  font-family: 'Lora', serif;
+  font-size: 17px;
+  line-height: 28px;
+  color: var(--ink);
+  caret-color: var(--accent);
+  box-sizing: border-box;;
   }
   .journal-textarea::placeholder { color: var(--ink-faint); font-style: italic; }
   .journal-textarea[readonly] { color: var(--ink-light); cursor: default; }
